@@ -64,16 +64,9 @@
         };
 
       nixosModules.stylix =
-        {
-          lib,
-          pkgs,
-          ...
-        }:
+        { ... }:
         {
           imports = [ ./nix/stylix.nix ];
-          services.coolercontrol-autoconf.package =
-            lib.mkDefault
-              self.packages.${pkgs.stdenv.hostPlatform.system}.default;
         };
 
       nixosModules.default = self.nixosModules.coolercontrol-autoconf;
