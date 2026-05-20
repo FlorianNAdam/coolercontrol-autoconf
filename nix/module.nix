@@ -178,7 +178,7 @@ in
         LoadCredential = [ "${passwordCredential}:${cfg.passwordFile}" ];
         ExecStart = lib.escapeShellArgs (
           [
-            (lib.getExe cfg.package)
+            (lib.getExe' cfg.package "coolercontrol-autoconf")
             "--url"
             cfg.url
             "--password-file"
