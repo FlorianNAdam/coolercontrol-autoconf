@@ -38,6 +38,13 @@ in
       description = "Package providing the coolercontrol-autoconf executable.";
     };
 
+    coolercontroldPackage = lib.mkOption {
+      type = lib.types.package;
+      default = pkgs.coolercontrol.coolercontrold;
+      defaultText = lib.literalExpression "pkgs.coolercontrol.coolercontrold";
+      description = "Package providing the coolercontrold executable.";
+    };
+
     url = lib.mkOption {
       type = lib.types.str;
       default = "http://localhost:11987";
@@ -46,8 +53,10 @@ in
 
     coolercontrold = lib.mkOption {
       type = lib.types.str;
-      default = lib.getExe' pkgs.coolercontrol "coolercontrold";
-      defaultText = lib.literalExpression ''lib.getExe' pkgs.coolercontrol "coolercontrold"'';
+      default = lib.getExe cfg.coolercontroldPackage;
+      defaultText = lib.literalExpression ''
+        lib.getExe config.services.coolercontrol-autoconf.coolercontroldPackage
+      '';
       description = "Path to the coolercontrold executable used by setPassword.";
     };
 
