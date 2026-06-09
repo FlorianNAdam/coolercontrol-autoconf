@@ -3,7 +3,7 @@ use clap::Parser;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Deserializer};
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf, process::Command};
+use std::{fs, path::PathBuf, process::Command, time::Duration};
 
 const THEME_MODE_CUSTOM: &str = "custom theme";
 const DEFAULT_CURRENT_PASSWORD: &str = "coolAdmin";
@@ -39,6 +39,14 @@ struct Args {
     #[arg(long, default_value = "coolercontrold")]
     coolercontrold: PathBuf,
 
+    /// Wait until the CoolerControl daemon accepts HTTP requests before applying settings.
+    #[arg(long)]
+    wait: bool,
+
+    /// Interval between daemon readiness checks when --wait is set.
+    #[arg(long, default_value = "1s", value_parser = parse_wait_interval)]
+    wait_interval: Duration,
+
     /// JSON file containing CoolerControl UI settings.
     theme_file: PathBuf,
 }
@@ -54,6 +62,10 @@ async fn main() -> Result<()> {
         .context("failed to build HTTP client")?;
     let password = read_password(&args)?;
 
+    if args.wait {
+        wait_for_server(&client, &args.url, args.wait_interval).await?;
+    }
+
     if args.set_password {
         set_password(&client, &args.url, &password, &args.coolercontrold).await?;
     }
@@ -65,7 +77,10 @@ async fn main() -> Result<()> {
     merge_settings(&mut settings, settings_file)?;
     save_ui_settings(&client, &args.url, &settings).await?;
 
-    println!("Set CoolerControl UI settings from {}", args.theme_file.display());
+    println!(
+        "Set CoolerControl UI settings from {}",
+        args.theme_file.display()
+    );
     Ok(())
 }
 
@@ -83,6 +98,15 @@ fn read_password(args: &Args) -> Result<String> {
         args.password_file.as_ref(),
         "CoolerControl admin password",
     )
+}
+
+fn parse_wait_interval(value: &str) -> std::result::Result<Duration, String> {
+    let duration = humantime::parse_duration(value).map_err(|error| error.to_string())?;
+    if duration.is_zero() {
+        return Err("wait interval must be greater than 0".to_string());
+    }
+
+    Ok(duration)
 }
 
 fn read_password_value(
@@ -314,6 +338,46 @@ async fn login(client: &Client, base_url: &Url, password: &str) -> Result<()> {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         bail!("login failed with {status}: {body}");
+    }
+
+    Ok(())
+}
+
+async fn wait_for_server(client: &Client, base_url: &Url, interval: Duration) -> Result<()> {
+    loop {
+        if handshake(client, base_url).await.is_ok() {
+            return Ok(());
+        }
+
+        eprintln!(
+            "CoolerControl daemon is not ready at {base_url}; retrying in {}",
+            humantime::format_duration(interval)
+        );
+        tokio::time::sleep(interval).await;
+    }
+}
+
+async fn handshake(client: &Client, base_url: &Url) -> Result<()> {
+    let url = base_url
+        .join("handshake")
+        .context("invalid handshake URL")?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .context("handshake request failed")?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        bail!("handshake failed with {status}");
+    }
+
+    let body = response
+        .json::<Value>()
+        .await
+        .context("daemon returned invalid handshake JSON")?;
+    if body.get("shake").and_then(Value::as_bool) != Some(true) {
+        bail!("daemon returned invalid handshake response");
     }
 
     Ok(())

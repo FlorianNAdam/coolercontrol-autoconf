@@ -79,6 +79,22 @@ in
       '';
     };
 
+    wait = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Wait for the CoolerControl daemon API to respond before applying settings.
+      '';
+    };
+
+    waitInterval = lib.mkOption {
+      type = lib.types.str;
+      default = "1s";
+      description = ''
+        Interval between daemon readiness checks, such as "500ms", "1s", or "5s".
+      '';
+    };
+
     settings = {
       theme = lib.mkOption {
         type = lib.types.oneOf [
@@ -188,6 +204,11 @@ in
             "--set-password"
             "--coolercontrold"
             cfg.coolercontrold
+          ]
+          ++ lib.optionals cfg.wait [
+            "--wait"
+            "--wait-interval"
+            cfg.waitInterval
           ]
           ++ [ settingsFile ]
         );
