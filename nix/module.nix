@@ -179,7 +179,10 @@ in
     systemd.services.coolercontrol-autoconf = {
       description = "Apply declarative CoolerControl UI settings";
       wantedBy = [ "multi-user.target" ];
-      wants = [ "coolercontrold.service" ];
+      wants = [
+        "coolercontrold.service"
+        "network-online.target"
+      ];
       after = [
         "coolercontrold.service"
         "network-online.target"
